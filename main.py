@@ -2,14 +2,13 @@
 import os
 import json
 from typing import Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 
 app = FastAPI()
 
 filename = os.path.expanduser("~/targets.json")
-doc_job = "qa1-docker"
 
 
 class Data(BaseModel):
@@ -20,7 +19,7 @@ class Data(BaseModel):
 
 @app.get("/")
 def home():
-    return {"data": "App is healthy"}
+    return {"data": "App is alive and healthy"}
 
 
 @app.post("/api/config")
@@ -28,8 +27,15 @@ def write(data: Data):
     job = data.job
     host = data.address
     docker_monitoring = data.docker_monitoring
+    if not host:
+        raise HTTPException(status_code= 502, detail="address cannot be empty")
     nxp_host = f"{host}:9100"
     doc_host = f"{host}:9101"
+    doc_job = "prom-docker"
+    if job is not None:
+        pre = job.split("-")[0]
+        if "qa" in pre or "dev" in pre or "prod" in pre:
+            doc_job = f"{pre}-docker"
     new_data = []
     with open(filename) as f:
         temp = json.load(f)
