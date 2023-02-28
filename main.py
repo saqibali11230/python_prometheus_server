@@ -12,7 +12,8 @@ filename = os.path.expanduser("~/targets.json")
 
 
 class Data(BaseModel):
-    job: Optional[str] = "qa1-monitoring"
+    env: Optional[str] = "qa1"
+    pattern: Optional[str] = "monitoring"
     address: str
     docker_monitoring: Optional[bool] = False
 
@@ -24,21 +25,20 @@ def home():
 
 @app.post("/api/config")
 def write(data: Data):
-    job = data.job
+    job = f"{data.env}-{data.pattern}"
     host = data.address
     docker_monitoring = data.docker_monitoring
     if not host:
         raise HTTPException(status_code= 502, detail="address cannot be empty")
     nxp_host = f"{host}:9100"
     doc_host = f"{host}:9101"
-    doc_job = "prom-docker"
-    if job is not None:
-        pre = job.split("-")[0]
-        if "qa" in pre or "dev" in pre or "prod" in pre:
-            doc_job = f"{pre}-docker"
+    doc_job = f"{data.env}-docker"
     new_data = []
     with open(filename) as f:
-        temp = json.load(f)
+        try:
+            temp = json.load(f)
+        except Exception:
+            temp = []
         find = next((i for i in temp if i["labels"]["job"] == job), None)
         if find:
             check = nxp_host in find["targets"]
@@ -48,7 +48,7 @@ def write(data: Data):
                 find["targets"].append(nxp_host)
                 new_data.extend(temp)
         else:
-            new_job = {"targets": [nxp_host], "labels": {"env": "prod", "job": job}}
+            new_job = {"targets": [nxp_host], "labels": {"env": data.env, "job": job}}
             temp.append(new_job)
             new_data.extend(temp)
 
@@ -61,7 +61,7 @@ def write(data: Data):
             else:
                 new_djob = {
                     "targets": [doc_host],
-                    "labels": {"env": "prod", "job": doc_job},
+                    "labels": {"env": data.env, "job": doc_job},
                 }
                 new_data.append(new_djob)
     with open(filename, "w") as f:
